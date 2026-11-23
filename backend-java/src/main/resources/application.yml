@@ -1,0 +1,28 @@
+server:
+  port: 8000
+
+spring:
+  application:
+    name: intervia-backend-java
+  config:
+    import: optional:file:../.env[.properties],optional:file:.env[.properties]
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/intervia
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 25MB
+
+intervia:
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-2.5-flash}
+  auth:
+    enabled: ${AUTH_ENABLED:false}
+
+logging:
+  level:
+    root: INFO
+    com.intervia: INFO
+    org.springframework.data.mongodb: WARN

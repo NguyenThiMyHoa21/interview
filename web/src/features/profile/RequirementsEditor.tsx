@@ -1,0 +1,212 @@
+import { Plus, X } from 'lucide-react'
+import { useImperativeHandle, useState, type Ref } from 'react'
+import { useSaveJdVersion } from '@/api/hooks'
+import type { JdVersion, Requirement } from '@/api/types'
+import { Badge } from '@/components/Badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { errorMessage } from '@/lib/errors'
+import { notifySaved } from '@/lib/notify'
+import { Empty, SaveBar, Section } from './editor-parts'
+import { useVersionedDraft, type VersionedEditorHandle } from './use-versioned-draft'
+
+const KIND_LABEL = { required: 'Bắt buộc', preferred: 'Nên có' } as const
+const otherKind = (k: Requirement['kind']) => (k === 'required' ? 'preferred' : 'required')
+
+/**
+ * JD requirements editor, shared by the match page [3] and the JD detail page [9] (UI-4.4).
+ * Each requirement toggles between Bắt buộc / Nên có or can be removed; saving creates a new
+ * version of the JD, like the profile editor (UI-4.3).
+ */
+export function RequirementsEditor({
+  jdId,
+  version,
+  readOnly = false,
+  onSaved,
+  ref,
+}: {
+  jdId: string
+  version: JdVersion
+  /** Old versions from the history are view-only. */
+  readOnly?: boolean
+  /** After a new version is saved, e.g. to switch the session to it (page 3). */
+  onSaved?: (saved: JdVersion) => void
+  ref?: Ref<VersionedEditorHandle>
+}) {
+  const save = useSaveJdVersion()
+  const { base, draft, dirty, justSaved, edit, saved, discard } = useVersionedDraft(
+    version,
+    (v) => v.requirements,
+  )
+  const [adding, setAdding] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newKind, setNewKind] = useState<Requirement['kind']>('required')
+
+  const editRequirements = (update: (rs: Requirement[]) => Requirement[]) =>
+    edit((d) => ({ ...d, requirements: update(d.requirements) }))
+
+  const addRequirement = () => {
+    const trimmed = newName.trim()
+    if (!trimmed) return
+    const next: Requirement = {
+      id: `rq-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      name: trimmed,
+      kind: newKind,
+      importance: newKind === 'required' ? 3 : 2,
+      source_quote: null,
+    }
+    editRequirements((rs) => [...rs, next])
+    setNewName('')
+    setAdding(false)
+  }
+
+  const persist = async () => {
+    const v = await save.mutateAsync({ id: jdId, base_version: base.version, requirements: draft })
+    saved(v)
+    notifySaved('Đã lưu', `Yêu cầu JD đã lưu thành bản ${v.version}.`)
+    onSaved?.(v)
+    return v.version
+  }
+  // A failed save shows its error in the SaveBar (save.isError).
+  const onSave = () => void persist().catch(() => {})
+  useImperativeHandle(ref, () => ({
+    save: () => (dirty ? persist().catch(() => null) : Promise.resolve(base.version)),
+  }))
+
+  return (
+    <div className="grid gap-6">
+      <Section title="Yêu cầu">
+        {draft.requirements.length === 0 ? (
+          <Empty>Chưa có yêu cầu nào.</Empty>
+        ) : (
+          <ul className="grid gap-1">
+            {draft.requirements.map((r) => (
+              <RequirementRow
+                key={r.id}
+                requirement={r}
+                readOnly={readOnly}
+                onToggle={() =>
+                  editRequirements((rs) =>
+                    rs.map((x) => (x.id === r.id ? { ...x, kind: otherKind(x.kind) } : x)),
+                  )
+                }
+                onRemove={() => editRequirements((rs) => rs.filter((x) => x.id !== r.id))}
+              />
+            ))}
+          </ul>
+        )}
+        {!readOnly && (
+          <div className="mt-2">
+            {adding ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-muted/40 p-2.5">
+                <Input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      addRequirement()
+                    }
+                  }}
+                  placeholder="Ví dụ: Docker, Microservices..."
+                  aria-label="Tên yêu cầu mới"
+                  className="h-8 min-w-44 flex-1"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setNewKind((k) => otherKind(k))}
+                >
+                  {KIND_LABEL[newKind]}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!newName.trim()}
+                  onClick={addRequirement}
+                >
+                  Thêm
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setAdding(false)
+                    setNewName('')
+                  }}
+                >
+                  Hủy
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAdding(true)}
+              >
+                <Plus className="mr-1 size-4" /> Thêm yêu cầu
+              </Button>
+            )}
+          </div>
+        )}
+      </Section>
+
+      {!readOnly && (
+        <SaveBar
+          dirty={dirty}
+          justSaved={justSaved}
+          savedVersion={base.version}
+          pending={save.isPending}
+          error={save.isError && dirty ? errorMessage(save.error) : null}
+          onSave={onSave}
+          onDiscard={() => {
+            discard()
+            save.reset()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function RequirementRow({
+  requirement: r,
+  readOnly,
+  onToggle,
+  onRemove,
+}: {
+  requirement: Requirement
+  readOnly: boolean
+  onToggle: () => void
+  onRemove: () => void
+}) {
+  return (
+    <li className="flex items-start gap-2 py-1">
+      <div className="min-w-0 flex-1">
+        <p className="text-ink">{r.name}</p>
+        {r.source_quote && <p className="text-sm text-ink2">“{r.source_quote}”</p>}
+      </div>
+      {readOnly ? (
+        <Badge variant={r.kind} />
+      ) : (
+        <>
+          <button
+            type="button"
+            className="rounded-md focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+            aria-label={`${r.name}: ${KIND_LABEL[r.kind]}, đổi sang ${KIND_LABEL[otherKind(r.kind)]}`}
+            title={`Đổi sang ${KIND_LABEL[otherKind(r.kind)]}`}
+            onClick={onToggle}
+          >
+            <Badge variant={r.kind} className="cursor-pointer hover:opacity-80" />
+          </button>
+          <Button size="icon-sm" variant="ghost" aria-label={`Xóa ${r.name}`} onClick={onRemove}>
+            <X />
+          </Button>
+        </>
+      )}
+    </li>
+  )
+}
