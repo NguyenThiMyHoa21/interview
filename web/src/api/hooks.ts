@@ -15,12 +15,14 @@ import type {
   Credentials,
   CvSummary,
   CvVersion,
+  ForgotPasswordResponse,
   JdDetail,
   JdRequirements,
   JdSummary,
   JdVersion,
   Mode,
   PasswordChange,
+  ResetPasswordInput,
   Role,
   SessionEndSummary,
   SessionReportView,
@@ -61,6 +63,24 @@ function useStartLogin(path: '/auth/login' | '/auth/signup') {
 
 export const useLogin = () => useStartLogin('/auth/login')
 export const useSignup = () => useStartLogin('/auth/signup')
+
+export const useForgotPassword = () =>
+  useMutation({
+    mutationFn: (email: string) =>
+      request<ForgotPasswordResponse>('/auth/forgot-password', {
+        method: 'POST',
+        body: { email },
+      }),
+  })
+
+export const useResetPassword = () =>
+  useMutation({
+    mutationFn: (body: ResetPasswordInput) =>
+      request<void>('/auth/reset-password', {
+        method: 'POST',
+        body: { ...body },
+      }),
+  })
 
 /**
  * Logout and account deletion both end the login here: drop the cache and the answer drafts

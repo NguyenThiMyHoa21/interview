@@ -46,6 +46,17 @@ export interface PasswordChange {
   new_password: string
 }
 
+export interface ForgotPasswordResponse {
+  message: string
+  dev_code?: string
+}
+
+export interface ResetPasswordInput {
+  email: string
+  code: string
+  new_password: string
+}
+
 export interface Role {
   id: string
   name: string
@@ -370,5 +381,5 @@ export const LIMITS = {
   jdMaxChars: 20_000,
   answerMaxChars: 8_000,
   nameMaxChars: 120,
-  passwordMinChars: 10,
+  passwordMinChars: 6,
 } as const

@@ -163,6 +163,16 @@ function AuthForm({ kind, next }: { kind: Kind; next: string }) {
           />
         )}
       </Field>
+      {kind === 'login' && (
+        <div className="-mt-2 text-right">
+          <Link
+            to="/forgot-password"
+            className="text-xs font-medium text-accent underline-offset-4 hover:underline"
+          >
+            Quên mật khẩu?
+          </Link>
+        </div>
+      )}
       {kind === 'signup' && (
         <Field label="Nhập lại mật khẩu" error={errors.confirm}>
           {({ id, describedBy }) => (

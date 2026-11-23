@@ -19,7 +19,7 @@ intervia:
     api-key: ${GEMINI_API_KEY:}
     model: ${GEMINI_MODEL:gemini-2.5-flash}
   auth:
-    enabled: ${AUTH_ENABLED:false}
+    enabled: ${AUTH_ENABLED:true}
 
 logging:
   level:

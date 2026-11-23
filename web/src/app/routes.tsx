@@ -9,6 +9,7 @@ import { InterviewPage } from '@/pages/interview'
 import { JdDetailPage } from '@/pages/jd-detail'
 import { LibraryPage } from '@/pages/library'
 import { LoginPage, SignupPage } from '@/pages/login'
+import { ForgotPasswordPage } from '@/pages/login/ForgotPasswordPage'
 import { NotFoundPage } from '@/pages/not-found'
 import { ReviewPage } from '@/pages/review'
 import { SessionMatchPage } from '@/pages/session-match'
@@ -74,6 +75,7 @@ export const routes: RouteObject[] = [
         children: [
           { path: '/login', element: <LoginPage /> }, // [11]
           { path: '/signup', element: <SignupPage /> }, // [11]
+          { path: '/forgot-password', element: <ForgotPasswordPage /> },
         ],
       },
     ],
