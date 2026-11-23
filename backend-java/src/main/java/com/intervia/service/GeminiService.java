@@ -292,21 +292,35 @@ public class GeminiService {
 
     public SessionReportData generateReport(String role, String level, String interviewTranscript, List<BlueprintCompetency> competencies) {
         String system = """
-                Bạn là Chuyên gia Đánh giá Phỏng vấn (Evaluator) kiêm Huấn luyện viên Sự nghiệp (Career Coach).
-                Nhiệm vụ: Đọc biên bản phỏng vấn kỹ thuật và đưa ra báo cáo đánh giá toàn diện định dạng JSON:
+                Bạn là Chuyên gia Đánh giá Phỏng vấn kỹ thuật (Evaluator) cực kỳ NGHIÊM KHẮC, KHÁCH QUAN và TRUNG THỰC.
+                TUYỆT ĐỐI KHÔNG nịnh nọt hay cho điểm khuyến khích vô lý.
+
+                QUY TẮC CHẤM ĐIỂM BẮT BUỘC (thang 0 - 10):
+                - 0.0 - 2.0 điểm (status: "weak"): Câu trả lời tào lao, lạc đề, gõ bừa/vô nghĩa (vd: "abc", "123", "hehe", "không biết"), quá ngắn không có kiến thức chuyên môn, hoặc bỏ qua.
+                - 2.5 - 4.5 điểm (status: "weak"): Có nhắc vài từ khóa nhưng sai bản chất hoặc trả lời hời hợt, thiếu logic.
+                - 5.0 - 6.9 điểm (status: "adequate"): Đúng ý cơ bản nhưng thiếu ví dụ thực tế, thiếu chiều sâu kỹ thuật.
+                - 7.0 - 8.5 điểm (status: "strong"): Trả lời đúng trọng tâm, giải thích rõ cơ chế và có ví dụ thực tế.
+                - 8.6 - 10.0 điểm (status: "strong"): Xuất sắc, phân tích sâu trade-off, kiến trúc, hiệu năng và edge-case.
+
+                QUY TẮC TỔNG HỢP:
+                - overall_score phải tính trung thực theo chất lượng thực tế của các câu đã trả lời VÀ có trừ điểm nếu ứng viên trả lời quá ít câu hoặc bỏ qua nhiều. Nếu trả lời tào lao/lạc đề thì overall_score PHẢI <= 2.5 và readiness = "needs_practice".
+                - Nếu ứng viên không thể hiện được điểm mạnh thực sự nào, để strengths = [] (mảng rỗng), KHÔNG bịa ra điểm mạnh giả.
+                - Mọi nhận xét (summary, feedback, gaps, sample_answer, roadmap) phải viết bằng Tiếng Việt rõ ràng, chỉ rõ lỗi sai trong câu trả lời của ứng viên.
+
+                Trả về ĐÚNG JSON theo cấu trúc sau (không bọc markdown, không văn bản phụ):
                 {
-                   "overall_score": 7.5 (thang điểm 10, làm tròn 1 chữ số thập phân),
-                   "readiness": "ready" (nếu >= 7.5) hoặc "almost_ready" (nếu 5.5 - 7.4) hoặc "needs_practice" (< 5.5),
-                   "summary": "Nhận xét tổng quan súc tích về màn phỏng vấn của ứng viên",
-                   "strengths": ["Điểm mạnh 1", "Điểm mạnh 2"],
-                   "improvements": ["Điểm cần cải thiện 1", "Điểm cần cải thiện 2"],
+                   "overall_score": <số thực 0.0 - 10.0, làm tròn 1 chữ số thập phân>,
+                   "readiness": "ready" (>= 7.5) | "almost_ready" (5.5 - 7.4) | "needs_practice" (< 5.5),
+                   "summary": "Nhận xét tổng quan thẳng thắn, trung thực về màn phỏng vấn",
+                   "strengths": ["Điểm mạnh thực sự nếu có, hoặc mảng rỗng []"],
+                   "improvements": ["Điểm yếu cụ thể cần khắc phục"],
                    "competencies": [
                       {
                          "competency_id": "...",
                          "competency_name": "...",
                          "weight": 0.4,
-                         "score": 8.0,
-                         "status": "strong" | "adequate" | "weak",
+                         "score": 0.0,
+                         "status": "strong" | "adequate" | "weak" | "not_assessed",
                          "summary": "Nhận xét cụ thể cho nhóm năng lực này"
                       }
                    ],
@@ -315,13 +329,13 @@ public class GeminiService {
                          "question_id": "...",
                          "question_index": 1,
                          "question_text": "...",
-                         "answer_excerpt": "trích tóm tắt câu trả lời của ứng viên",
-                         "status": "strong" | "adequate" | "weak",
-                         "score": 8,
-                         "strengths": ["..."],
-                         "gaps": ["..."],
-                         "feedback": "Nhận xét chi tiết cho câu trả lời này",
-                         "sample_answer": "Gợi ý câu trả lời mẫu xuất sắc"
+                         "answer_excerpt": "trích ngắn câu trả lời thực tế của ứng viên",
+                         "status": "strong" | "adequate" | "weak" | "not_assessed",
+                         "score": 0,
+                         "strengths": [],
+                         "gaps": ["Thiếu kiến thức..."],
+                         "feedback": "Nhận xét thẳng thắn vì sao chấm điểm này",
+                         "sample_answer": "Gợi ý câu trả lời mẫu chuẩn kỹ thuật"
                       }
                    ],
                    "roadmap": [
@@ -334,22 +348,74 @@ public class GeminiService {
                       }
                    ]
                 }
-                Chỉ trả về JSON chuẩn, không có văn bản phụ.
                 """;
         String prompt = String.format("Vị trí: %s (%s)\n\nBiên bản phỏng vấn:\n%s", role, level, interviewTranscript);
         try {
-            String json = generate(system, prompt, true);
-            return objectMapper.readValue(json, SessionReportData.class);
+            String raw = generate(system, prompt, true);
+            String cleaned = stripCodeFences(raw);
+            return objectMapper.readValue(cleaned, SessionReportData.class);
         } catch (Exception e) {
             log.error("Failed to generate or parse session report: {}", e.getMessage());
-            // Fallback report
-            SessionReportData fallback = new SessionReportData();
-            fallback.setOverallScore(7.0);
-            fallback.setReadiness("almost_ready");
-            fallback.setSummary("Ứng viên đã hoàn thành buổi phỏng vấn và thể hiện được kiến thức nền tảng.");
-            fallback.setStrengths(List.of("Nắm được cú pháp và kiến thức cơ bản", "Thái độ trả lời tự tin, cầu thị"));
-            fallback.setImprovements(List.of("Cần đào sâu hơn về kiến thức tối ưu hóa và nguyên lý hoạt động bên dưới"));
-            return fallback;
+            return buildHeuristicFallbackReport(interviewTranscript);
         }
+    }
+
+    private String stripCodeFences(String text) {
+        if (text == null) return "";
+        String t = text.trim();
+        if (t.startsWith("```")) {
+            int firstNewline = t.indexOf('\n');
+            if (firstNewline > 0) t = t.substring(firstNewline + 1);
+            if (t.endsWith("```")) t = t.substring(0, t.length() - 3);
+        }
+        return t.trim();
+    }
+
+    private SessionReportData buildHeuristicFallbackReport(String transcript) {
+        SessionReportData fallback = new SessionReportData();
+        // Inspect actual answer lengths so nonsense/very short answers never get 7.0
+        int answeredCount = 0;
+        int meaningfulChars = 0;
+        if (transcript != null) {
+            for (String line : transcript.split("\n")) {
+                if (line.startsWith("Ứng viên trả lời:")) {
+                    String ans = line.substring("Ứng viên trả lời:".length()).trim();
+                    if (!ans.isEmpty() && !ans.contains("[Bỏ qua câu hỏi]")) {
+                        answeredCount++;
+                        meaningfulChars += ans.length();
+                    }
+                }
+            }
+        }
+        double avgLen = answeredCount > 0 ? (double) meaningfulChars / answeredCount : 0;
+        if (answeredCount == 0) {
+            fallback.setOverallScore(null);
+            fallback.setReadiness("insufficient_data");
+            fallback.setSummary("Chưa có câu trả lời nào để đánh giá.");
+            fallback.setStrengths(List.of());
+            fallback.setImprovements(List.of("Hãy trả lời ít nhất một vài câu hỏi để hệ thống đánh giá năng lực."));
+        } else if (avgLen < 35) {
+            fallback.setOverallScore(1.5);
+            fallback.setReadiness("needs_practice");
+            fallback.setSummary("Các câu trả lời còn quá ngắn, thiếu nội dung chuyên môn hoặc chưa đi đúng trọng tâm câu hỏi.");
+            fallback.setStrengths(List.of());
+            fallback.setImprovements(List.of(
+                    "Trả lời đầy đủ ý, trình bày rõ nguyên lý kỹ thuật thay vì trả lời quá ngắn gọn",
+                    "Bổ sung ví dụ dự án thực tế để chứng minh năng lực"
+            ));
+        } else if (avgLen < 120) {
+            fallback.setOverallScore(4.5);
+            fallback.setReadiness("needs_practice");
+            fallback.setSummary("Ứng viên có trả lời nhưng nội dung còn sơ sài và thiếu chiều sâu kỹ thuật (tạm tính do AI đang quá tải).");
+            fallback.setStrengths(List.of("Có tham gia trả lời câu hỏi phỏng vấn"));
+            fallback.setImprovements(List.of("Cần giải thích chi tiết hơn về cách triển khai và xử lý tình huống thực tế"));
+        } else {
+            fallback.setOverallScore(6.0);
+            fallback.setReadiness("almost_ready");
+            fallback.setSummary("Ứng viên đã trình bày câu trả lời tương đối đầy đủ (tạm tính do AI đang quá tải — hãy bấm 'Đánh giá lại' sau vài giây).");
+            fallback.setStrengths(List.of("Trình bày câu trả lời có độ dài và thông tin tương đối rõ ràng"));
+            fallback.setImprovements(List.of("Bấm 'Đánh giá lại' để AI phân tích chi tiết từng câu hỏi"));
+        }
+        return fallback;
     }
 }

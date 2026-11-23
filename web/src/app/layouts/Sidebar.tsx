@@ -1,5 +1,6 @@
 import {
   Library,
+  LogOut,
   type LucideIcon,
   Map,
   Menu,
@@ -11,11 +12,13 @@ import {
   UserRound,
 } from 'lucide-react'
 import { type MouseEvent, type ReactElement, useState } from 'react'
-import { Link, useMatch, useResolvedPath } from 'react-router'
-import { useMe } from '@/api/hooks'
+import { Link, useMatch, useNavigate, useResolvedPath } from 'react-router'
+import { useLogout, useMe } from '@/api/hooks'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { errorMessage } from '@/lib/errors'
+import { notifyError } from '@/lib/notify'
 import { cn } from '@/lib/utils'
 import { SessionList } from './SessionList'
 import { useSidebarCollapsed } from './use-sidebar-collapsed'
@@ -113,8 +116,11 @@ function SidebarPanel({
   onToggleCollapsed?: () => void
 }) {
   const me = useMe().data
+  const navigate = useNavigate()
+  const logout = useLogout()
   const authEnabled = me?.auth_enabled ?? false
   const isAdmin = me?.user?.role === 'ADMIN'
+  const isLoggedIn = authEnabled && Boolean(me?.user)
   const toggleLabel = collapsed ? 'Mở rộng thanh bên' : 'Thu gọn thanh bên'
   const ToggleIcon = collapsed ? PanelLeftOpen : PanelLeftClose
   return (
@@ -170,8 +176,28 @@ function SidebarPanel({
         )}
         <NavList items={insightItems} label="Phân tích" collapsed={collapsed} />
       </div>
-      <div className={cn('border-t border-line p-3', collapsed && 'px-2')}>
+      <div className={cn('grid gap-1 border-t border-line p-3', collapsed && 'px-2')}>
         <NavList items={footerItems(authEnabled, isAdmin)} label="Thư viện và tài khoản" collapsed={collapsed} />
+        {isLoggedIn && (
+          <button
+            type="button"
+            disabled={logout.isPending}
+            onClick={() =>
+              logout.mutate(undefined, {
+                onSuccess: () => navigate('/login', { replace: true }),
+                onError: (err) => notifyError(errorMessage(err)),
+              })
+            }
+            aria-label={collapsed ? 'Đăng xuất' : undefined}
+            className={cn(
+              'flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-sm text-danger transition-colors hover:bg-rose-50',
+              collapsed && 'justify-center px-0',
+            )}
+          >
+            <LogOut className="size-4 shrink-0" />
+            {!collapsed && <span className="truncate">{logout.isPending ? 'Đang thoát...' : 'Đăng xuất'}</span>}
+          </button>
+        )}
       </div>
     </>
   )
