@@ -19,6 +19,7 @@ public class UserDocument {
     @Id
     private String id;
     private String email;
+    private String role;
     @Field("password_hash")
     private String passwordHash;
     @Field("created_at")

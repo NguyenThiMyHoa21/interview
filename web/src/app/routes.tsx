@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router'
 import { RouteErrorView } from '@/components/ErrorPages'
 import { AuthRoot, RequireAuth } from '@/features/auth/AuthRoot'
 import { AccountPage } from '@/pages/account'
+import { AdminPage } from '@/pages/admin'
 import { SessionGate, SessionIndexRedirect } from '@/features/sessions/SessionGate'
 import { CvDetailPage } from '@/pages/cv-detail'
 import { HomePage } from '@/pages/home'
@@ -52,6 +53,7 @@ export const routes: RouteObject[] = [
                   { path: '/library/cv/:id', element: <CvDetailPage /> }, // [8]
                   { path: '/library/jd/:id', element: <JdDetailPage /> }, // [9]
                   { path: '/account', element: <AccountPage /> }, // [10], login on only
+                  { path: '/admin', element: <AdminPage /> }, // RBAC Admin Dashboard
                   { path: '*', element: <NotFoundPage /> },
                 ],
               },

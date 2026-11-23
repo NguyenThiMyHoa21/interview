@@ -65,8 +65,8 @@ public class AuthService {
         if (!authEnabled) {
             String userId = resolveCurrentUserId(request);
             Optional<UserDocument> u = userRepository.findById(userId);
-            UserView view = u.map(doc -> new UserView(doc.getId(), doc.getEmail()))
-                    .orElse(new UserView(userId, AppConstants.DEFAULT_USER_EMAIL));
+            UserView view = u.map(this::toUserView)
+                    .orElse(new UserView(userId, AppConstants.DEFAULT_USER_EMAIL, "ADMIN"));
             return new AuthState(false, view);
         }
         String userId = findUserIdFromCookie(request);
@@ -74,8 +74,36 @@ public class AuthService {
             return new AuthState(true, null);
         }
         return userRepository.findById(userId)
-                .map(u -> new AuthState(true, new UserView(u.getId(), u.getEmail())))
+                .map(u -> new AuthState(true, toUserView(u)))
                 .orElse(new AuthState(true, null));
+    }
+
+    public UserDocument requireAdmin(HttpServletRequest request) {
+        String userId = resolveCurrentUserId(request);
+        UserDocument user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException("unauthenticated", HttpStatus.UNAUTHORIZED, "Bạn cần đăng nhập để tiếp tục."));
+        String role = resolveRole(user);
+        if (!"ADMIN".equalsIgnoreCase(role)) {
+            throw new ApiException("forbidden", HttpStatus.FORBIDDEN, "Chỉ quản trị viên (ADMIN) mới có quyền thực hiện thao tác này.");
+        }
+        return user;
+    }
+
+    public UserView toUserView(UserDocument doc) {
+        return new UserView(doc.getId(), doc.getEmail(), resolveRole(doc));
+    }
+
+    public String resolveRole(UserDocument doc) {
+        if (doc.getRole() != null && !doc.getRole().isBlank()) {
+            return doc.getRole().toUpperCase(Locale.ROOT);
+        }
+        // Automatically promote primary existing owner account or first user to ADMIN
+        if ("hoami2113@gmail.com".equalsIgnoreCase(doc.getEmail())) {
+            doc.setRole("ADMIN");
+            userRepository.save(doc);
+            return "ADMIN";
+        }
+        return "USER";
     }
 
     public UserOut signup(Credentials creds, HttpServletResponse response) {
@@ -98,10 +126,14 @@ public class AuthService {
                     "Email này đã được đăng ký.", Map.of("email", "Email này đã được đăng ký."));
         }
 
+        boolean isFirstUser = userRepository.count() == 0;
+        String assignedRole = (isFirstUser || "hoami2113@gmail.com".equalsIgnoreCase(email)) ? "ADMIN" : "USER";
+
         Instant now = Instant.now();
         UserDocument doc = UserDocument.builder()
                 .id(UUID.randomUUID().toString())
                 .email(email)
+                .role(assignedRole)
                 .passwordHash(hashPassword(password))
                 .createdAt(now)
                 .updatedAt(now)
@@ -110,7 +142,7 @@ public class AuthService {
         userRepository.save(doc);
 
         createSessionAndSetCookie(doc.getId(), response);
-        return new UserOut(new UserView(doc.getId(), doc.getEmail()));
+        return new UserOut(toUserView(doc));
     }
 
     public UserOut login(Credentials creds, HttpServletResponse response) {
@@ -129,7 +161,7 @@ public class AuthService {
         }
 
         createSessionAndSetCookie(user.getId(), response);
-        return new UserOut(new UserView(user.getId(), user.getEmail()));
+        return new UserOut(toUserView(user));
     }
 
     public void logout(HttpServletRequest request, HttpServletResponse response) {

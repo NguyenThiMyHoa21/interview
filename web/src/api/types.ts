@@ -15,9 +15,41 @@ export interface ApiErrorBody {
 }
 
 // ---- Auth (UI-11) ----
+export type UserRole = 'USER' | 'ADMIN'
+
 export interface User {
   id: string
   email: string
+  role?: UserRole
+}
+
+export interface AdminOverview {
+  total_users: number
+  total_admins: number
+  total_sessions: number
+  completed_sessions: number
+  total_cvs: number
+  total_jds: number
+}
+
+export interface AdminUserRow {
+  id: string
+  email: string
+  role: UserRole
+  session_count: number
+  cv_count: number
+  created_at: string
+}
+
+export interface AdminSessionRow {
+  id: string
+  user_email: string
+  role_name: string
+  level: string
+  status: string
+  asked: number
+  planned: number
+  created_at: string
 }
 
 /** `GET /auth/me`. `auth_enabled: false`: the backend still uses its default user (no login). */

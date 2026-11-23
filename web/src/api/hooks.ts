@@ -4,6 +4,9 @@ import { qk } from './keys'
 import { dropAllDrafts, dropDraft } from '@/lib/answer-draft'
 import type {
   AccountData,
+  AdminOverview,
+  AdminSessionRow,
+  AdminUserRow,
   AnalysisStatus,
   AnalysisProgress,
   AuthState,
@@ -31,6 +34,7 @@ import type {
   Transcript,
   TranscriptItem,
   User,
+  UserRole,
   VersionInfo,
 } from './types'
 
@@ -113,6 +117,53 @@ export const useChangePassword = () =>
     mutationFn: (body: PasswordChange) =>
       request<void>('/account/password', { method: 'POST', body: { ...body } }),
   })
+
+// ---------- Admin (RBAC) ----------
+export const useAdminOverview = (enabled = true) =>
+  useQuery({
+    queryKey: ['admin', 'overview'],
+    queryFn: () => request<AdminOverview>('/admin/overview'),
+    enabled,
+  })
+
+export const useAdminUsers = (enabled = true) =>
+  useQuery({
+    queryKey: ['admin', 'users'],
+    queryFn: () => request<AdminUserRow[]>('/admin/users'),
+    enabled,
+  })
+
+export const useAdminSessions = (enabled = true) =>
+  useQuery({
+    queryKey: ['admin', 'sessions'],
+    queryFn: () => request<AdminSessionRow[]>('/admin/sessions'),
+    enabled,
+  })
+
+export const useUpdateUserRole = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: UserRole }) =>
+      request<AdminUserRow>(`/admin/users/${userId}/role`, {
+        method: 'PATCH',
+        body: { role },
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['admin'] })
+    },
+  })
+}
+
+export const useAdminDeleteUser = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (userId: string) =>
+      request<void>(`/admin/users/${userId}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['admin'] })
+    },
+  })
+}
 
 // ---------- Catalog ----------
 export const useRoles = () =>

@@ -6,6 +6,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  Shield,
   TrendingUp,
   UserRound,
 } from 'lucide-react'
@@ -33,9 +34,10 @@ const insightItems: NavItem[] = [
   { to: '/roadmap', label: 'Lộ trình', icon: Map, enabled: SIDEBAR_FEATURES.roadmap },
 ]
 
-// Pinned to the bottom. "Tài khoản" only when the backend has real login on (UI-11).
-const footerItems = (authEnabled: boolean): NavItem[] => [
+// Pinned to the bottom. "Tài khoản" only when login is on; "Quản trị" only for ADMIN.
+const footerItems = (authEnabled: boolean, isAdmin: boolean): NavItem[] => [
   { to: '/library', label: 'Thư viện CV & JD', icon: Library, enabled: true },
+  { to: '/admin', label: 'Quản trị (Admin)', icon: Shield, enabled: isAdmin },
   { to: '/account', label: 'Tài khoản', icon: UserRound, enabled: authEnabled },
 ]
 
@@ -110,7 +112,9 @@ function SidebarPanel({
   /** Desktop only; the mobile sheet closes with its own ✕. */
   onToggleCollapsed?: () => void
 }) {
-  const authEnabled = useMe().data?.auth_enabled ?? false
+  const me = useMe().data
+  const authEnabled = me?.auth_enabled ?? false
+  const isAdmin = me?.user?.role === 'ADMIN'
   const toggleLabel = collapsed ? 'Mở rộng thanh bên' : 'Thu gọn thanh bên'
   const ToggleIcon = collapsed ? PanelLeftOpen : PanelLeftClose
   return (
@@ -167,7 +171,7 @@ function SidebarPanel({
         <NavList items={insightItems} label="Phân tích" collapsed={collapsed} />
       </div>
       <div className={cn('border-t border-line p-3', collapsed && 'px-2')}>
-        <NavList items={footerItems(authEnabled)} label="Thư viện và tài khoản" collapsed={collapsed} />
+        <NavList items={footerItems(authEnabled, isAdmin)} label="Thư viện và tài khoản" collapsed={collapsed} />
       </div>
     </>
   )

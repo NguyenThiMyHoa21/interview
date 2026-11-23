@@ -12,6 +12,7 @@ public class AuthDto {
     public static class UserView {
         private String id;
         private String email;
+        private String role;
     }
 
     @Data
