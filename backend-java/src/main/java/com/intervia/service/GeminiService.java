@@ -251,10 +251,12 @@ public class GeminiService {
         String system = """
                 Bạn là người phỏng vấn kỹ thuật tiếng Việt chuyên nghiệp, thân thiện và sắc bén.
                 Hãy đặt ĐÚNG MỘT câu hỏi phỏng vấn ngắn gọn (1-3 câu), rõ ràng, tập trung vào chủ đề năng lực yêu cầu.
-                Không lặp lại các câu hỏi đã có trong lịch sử trao đổi.
-                Không đưa ra đáp án hay lời giải thích.
+                QUY TẮC BẮT BUỘC:
+                - TUYỆT ĐỐI KHÔNG lặp lại, KHÔNG diễn đạt lại (rephrase) hoặc hỏi biến thể của bất kỳ câu hỏi nào đã có trong lịch sử.
+                - Đặc biệt nếu ứng viên đã BỎ QUA ([SKIP]) câu hỏi trước, phải chuyển hẳn sang một khái niệm/bài toán HOÀN TOÀN KHÁC, không nhắc lại chủ đề vừa bị bỏ qua.
+                - Không đưa ra đáp án hay lời giải thích.
                 """;
-        String prompt = String.format("Vị trí: %s (%s)\nChủ đề cần hỏi: %s\n\nLịch sử phỏng vấn trước đó:\n%s\n\nHãy đặt câu hỏi tiếp theo:",
+        String prompt = String.format("Vị trí: %s (%s)\nChủ đề cần hỏi: %s\n\nLịch sử phỏng vấn trước đó:\n%s\n\nHãy đặt câu hỏi tiếp theo (hoàn toàn mới):",
                 role, level, competencyName, interviewHistory);
         try {
             return generate(system, prompt, false);

@@ -318,6 +318,11 @@ public class SessionService {
     }
 
     public SseEmitter submitTurn(String userId, String sessionId, String userText) {
+        String detectedIntent = detectQuickIntent(userText);
+        if (detectedIntent != null) {
+            return submitEvent(userId, sessionId, detectedIntent);
+        }
+
         SessionDocument session = requireSession(userId, sessionId);
         SseEmitter emitter = new SseEmitter(180000L);
 
@@ -402,12 +407,24 @@ public class SessionService {
         int nextIdx = asked + 1;
         String compName = "Kỹ năng chuyên môn";
         if (!bp.getCompetencies().isEmpty()) {
-            int compIdx = Math.min((nextIdx - 1) % bp.getCompetencies().size(), bp.getCompetencies().size() - 1);
+            int compIdx = (nextIdx - 1) % bp.getCompetencies().size();
             compName = bp.getCompetencies().get(compIdx).getName();
+            String prevComp = currentQ != null && currentQ.getCompetency() != null ? currentQ.getCompetency().getName() : "";
+            if (bp.getCompetencies().size() > 1 && compName.equalsIgnoreCase(prevComp)) {
+                compName = bp.getCompetencies().get((compIdx + 1) % bp.getCompetencies().size()).getName();
+            }
         }
 
+        // Include all previous questions so Gemini never repeats or rephrases any of them
+        List<QuestionDocument> allPrevQuestions = questionRepository.findAllBySessionIdOrderBySeqAsc(sessionId);
+        StringBuilder fullHistory = new StringBuilder();
+        for (QuestionDocument pq : allPrevQuestions) {
+            fullHistory.append(String.format("- Câu %d (ĐÃ HỎI): %s\n", pq.getIndex(), pq.getText()));
+        }
+        fullHistory.append("\nDiễn biến lượt vừa rồi:\n").append(history);
+
         String roleName = session.getRole() != null ? session.getRole().getName() : "Software Engineer";
-        String nextQText = geminiService.generateNextQuestion(roleName, session.getLevel(), compName, history);
+        String nextQText = geminiService.generateNextQuestion(roleName, session.getLevel(), compName, fullHistory.toString());
 
         QuestionDocument nextQ = QuestionDocument.builder()
                 .id(UUID.randomUUID().toString())
@@ -498,7 +515,8 @@ public class SessionService {
                 } else if ("SKIP".equals(normType)) {
                     int currentSeq = (session.getSeq() != null ? session.getSeq() : 1) + 1;
                     int asked = session.getAskedCount() != null ? session.getAskedCount() : 1;
-                    String history = String.format("Q%d: %s\n(Ứng viên đã bỏ qua câu hỏi này)",
+                    String history = String.format(
+                            "Q%d: %s\n[SKIP] Ứng viên đã BỎ QUA hoàn toàn câu hỏi này. TUYỆT ĐỐI KHÔNG hỏi lại hay đổi cách hỏi của câu này; hãy chuyển sang một câu hỏi ở chủ đề/kiến thức HOÀN TOÀN KHÁC.",
                             asked, currentQ != null ? currentQ.getText() : "");
                     generateAndSendNextQuestion(emitter, userId, sessionId, session, currentQ, currentSeq, history);
                 } else {
@@ -511,6 +529,32 @@ public class SessionService {
             }
         });
         return emitter;
+    }
+
+    private String detectQuickIntent(String text) {
+        if (text == null) return null;
+        String norm = text.trim().toLowerCase(Locale.ROOT);
+        if (norm.isEmpty() || norm.length() > 60) return null;
+
+        if (norm.equals("skip") || norm.equals("pass")
+                || norm.contains("bỏ qua") || norm.contains("bo qua")
+                || norm.contains("qua câu khác") || norm.contains("qua cau khac")
+                || norm.contains("chuyển câu") || norm.contains("chuyen cau")
+                || norm.equals("câu tiếp theo") || norm.equals("cau tiep theo")) {
+            return "SKIP";
+        }
+        if (norm.equals("repeat") || norm.contains("nhắc lại") || norm.contains("nhac lai")
+                || norm.contains("đọc lại") || norm.contains("doc lai")) {
+            return "REPEAT";
+        }
+        if (norm.equals("clarify") || norm.contains("giải thích") || norm.contains("giai thich")
+                || norm.contains("không hiểu câu") || norm.contains("khong hieu cau")) {
+            return "CLARIFY";
+        }
+        if (norm.equals("hint") || norm.contains("gợi ý") || norm.contains("goi y")) {
+            return "HINT";
+        }
+        return null;
     }
 
     private SessionEventDocument saveEvent(String userId, String sessionId, String qId, String type, Integer hintLevel, String text) {
